@@ -27,6 +27,58 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Fix project configuration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("build-project/A05sCameraBoost/build.gradle.kts")
+          app = Path("build-project/A05sCameraBoost/app/build.gradle.kts")
+
+          root_text = root.read_text()
+
+          root_text = root_text.replace(
+              'id("org.jetbrains.kotlin.android") version "2.0.21" apply false',
+              'id("org.jetbrains.kotlin.android") version "2.0.21" apply false\n    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false'
+          )
+
+          root.write_text(root_text)
+
+          app_text = app.read_text()
+
+          app_text = app_text.replace(
+              'id("org.jetbrains.kotlin.android")',
+              'id("org.jetbrains.kotlin.android")\n    id("org.jetbrains.kotlin.plugin.compose")'
+          )
+
+          app_text = app_text.replace(
+              '    composeOptions {\n        kotlinCompilerExtensionVersion = "1.5.15"\n    }\n',
+              ''
+          )
+
+          app_text = app_text.replace(
+              'android {\n',
+              '''android {
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+'''
+          )
+
+          app_text += '''
+
+kotlin {
+    jvmToolchain(17)
+}
+'''
+
+          app.write_text(app_text)
+
+          print("Compose compiler + Java/Kotlin 17 configuration applied.")
+          PY
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -34,10 +86,10 @@ jobs:
 
       - name: Build APK
         run: |
-          gradle -p build-project assembleDebug --stacktrace -Pkotlin.jvm.target.validation.mode=warning
+          gradle -p build-project/A05sCameraBoost assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: A05s-Camera-Boost-APK
-          path: build-project/app/build/outputs/apk/debug/app-debug.apk
+          path: build-project/A05sCameraBoost/app/build/outputs/apk/debug/app-debug.apk
