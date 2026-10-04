@@ -28,7 +28,7 @@ jobs:
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Fix Compose compiler configuration
+      - name: Fix Android build configuration
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -36,6 +36,7 @@ jobs:
           root = Path("build-project/build.gradle.kts")
           app = Path("build-project/app/build.gradle.kts")
 
+          # Add Compose compiler plugin to root project
           root_text = root.read_text()
 
           if 'org.jetbrains.kotlin.plugin.compose' not in root_text:
@@ -45,6 +46,7 @@ jobs:
               )
               root.write_text(root_text)
 
+          # Fix app module
           app_text = app.read_text()
 
           if 'org.jetbrains.kotlin.plugin.compose' not in app_text:
@@ -52,9 +54,32 @@ jobs:
                   'id("org.jetbrains.kotlin.android")',
                   'id("org.jetbrains.kotlin.android")\n    id("org.jetbrains.kotlin.plugin.compose")'
               )
-              app.write_text(app_text)
 
-          print("Compose compiler plugin configured.")
+          # Make Java target 17 instead of 1.8
+          if 'sourceCompatibility = JavaVersion.VERSION_17' not in app_text:
+              app_text = app_text.replace(
+                  'android {',
+                  '''android {
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }''',
+                  1
+              )
+
+          # Make Kotlin target 17
+          if 'jvmTarget = "17"' not in app_text:
+              marker = 'android {'
+              insert = '''
+kotlinOptions {
+    jvmTarget = "17"
+}
+'''
+              app_text = app_text.replace(marker, marker + insert, 1)
+
+          app.write_text(app_text)
+
+          print("Android/Java/Kotlin configuration fixed.")
           PY
 
       - name: Set up Gradle
